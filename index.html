@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sydney Opera House — An Epic in Concrete &amp; Sail</title>
+
+  <script type="importmap">
+  {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.min.js"></script>
+
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --ocean:#030f1e;--gold:#c9922a;--cream:#e8dfc8;
+      --txt:rgba(245,240,232,.95);--muted:rgba(200,190,170,.72);
+      --serif:'Georgia','Times New Roman',serif;
+      --sans:'Helvetica Neue',Arial,sans-serif;
+    }
+    html{scroll-behavior:auto}
+    body{background:var(--ocean);color:var(--txt);font-family:var(--sans);overflow-x:hidden}
+
+    #canvas-wrap{position:fixed;inset:0;z-index:0;pointer-events:none}
+    canvas{display:block;width:100%!important;height:100%!important}
+
+    .vignette{position:fixed;inset:0;z-index:2;pointer-events:none;
+      background:radial-gradient(ellipse at center,transparent 36%,rgba(3,15,30,.62) 100%)}
+
+    #scroll-track{position:relative;z-index:3;pointer-events:none}
+
+    .act{position:relative;z-index:3;min-height:100vh;display:flex;align-items:center;pointer-events:none}
+    .act--void{min-height:100vh;flex-direction:column;justify-content:center;text-align:center}
+    .act--sketch,.act--conflict{min-height:130vh}
+    .act--sphere,.act--texture,.act--legacy{min-height:140vh}
+    .act--future{min-height:100vh;flex-direction:column;justify-content:center;align-items:center}
+
+    .card{max-width:460px;margin:0 7vw;opacity:0;transform:translateX(-28px);pointer-events:auto}
+    .card--r{margin:0 7vw 0 auto;transform:translateX(28px)}
+
+    .eyebrow{font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-bottom:.55em}
+    .card h2{font-family:var(--serif);font-size:clamp(1.5rem,3.1vw,2.45rem);font-weight:400;line-height:1.22;margin-bottom:.8em}
+    .card p{font-size:clamp(.86rem,1.2vw,.99rem);line-height:1.8;color:var(--muted)}
+
+    .stats{display:flex;gap:1.3rem;margin-top:1.3rem;flex-wrap:wrap}
+    .stat{display:flex;flex-direction:column}
+    .stat b{font-size:1.32rem;font-family:var(--serif);color:var(--gold);font-weight:400}
+    .stat span{font-size:.62rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+
+    .void-hl{font-family:var(--serif);font-size:clamp(1.15rem,2.7vw,2rem);font-weight:400;
+      letter-spacing:.04em;max-width:620px;padding:0 2rem;line-height:1.6;opacity:0}
+
+    .future-wrap{display:flex;flex-direction:column;align-items:center;gap:1.4rem;
+      opacity:0;width:100%;padding:2rem;text-align:center;pointer-events:auto}
+    .future-wrap p{font-family:var(--serif);font-size:clamp(1.05rem,2vw,1.6rem);
+      font-weight:400;max-width:570px;line-height:1.55}
+    .btns{display:flex;gap:.9rem;flex-wrap:wrap;justify-content:center}
+
+    .btn{display:inline-block;padding:.66em 1.45em;border:1px solid rgba(201,146,42,.5);
+      color:var(--gold);font-size:.78rem;letter-spacing:.13em;text-transform:uppercase;
+      text-decoration:none;cursor:pointer;background:rgba(201,146,42,.06);
+      transition:background .25s,border-color .25s}
+    .btn:hover{background:rgba(201,146,42,.18);border-color:var(--gold)}
+    .btn--p{background:rgba(201,146,42,.18)}
+
+    #progress{position:fixed;top:0;left:0;height:2px;z-index:100;width:0%;
+      background:linear-gradient(to right,#0a2744,var(--gold));transition:width .04s linear}
+    #act-label{position:fixed;top:1.3rem;right:2rem;z-index:100;
+      font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;
+      color:var(--gold);opacity:0;transition:opacity .5s}
+    #hint{position:fixed;bottom:1.8rem;left:50%;transform:translateX(-50%);z-index:100;
+      display:flex;flex-direction:column;align-items:center;gap:.4rem;
+      font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;
+      color:var(--muted);opacity:0;animation:fh 1s 2.8s forwards}
+    .hl{width:1px;height:32px;background:linear-gradient(to bottom,transparent,var(--gold));
+      animation:pulse 1.9s ease-in-out infinite}
+    @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+    @keyframes fh{to{opacity:1}}
+
+    #dots{position:fixed;right:1rem;top:50%;transform:translateY(-50%);
+      z-index:100;display:flex;flex-direction:column;gap:.75rem}
+    .dot{width:6px;height:6px;border-radius:50%;
+      background:rgba(201,146,42,.22);border:1px solid rgba(201,146,42,.42);
+      transition:background .3s,transform .3s;cursor:pointer}
+    .dot.on{background:var(--gold);transform:scale(1.55)}
+
+    #loading{position:fixed;inset:0;z-index:9999;background:var(--ocean);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.1rem;
+      transition:opacity .9s}
+    #loading.gone{opacity:0;pointer-events:none}
+    .ll{font-family:var(--serif);font-size:.76rem;letter-spacing:.28em;
+      text-transform:uppercase;color:var(--gold)}
+    .lt{width:180px;height:1px;background:rgba(201,146,42,.18)}
+    .lf{height:100%;background:var(--gold);width:0%;transition:width .22s ease}
+
+    @media(max-width:640px){.card,.card--r{max-width:88vw;margin:0 6vw;transform:none}}
+  </style>
+</head>
+<body>
+
+<div id="loading"><div class="ll">Composing the Sails</div>
+  <div class="lt"><div class="lf" id="lf"></div></div></div>
+<div id="progress"></div>
+<div id="act-label"></div>
+<div id="dots">
+  <div class="dot on" data-i="0"></div><div class="dot" data-i="1"></div>
+  <div class="dot" data-i="2"></div><div class="dot" data-i="3"></div>
+  <div class="dot" data-i="4"></div><div class="dot" data-i="5"></div>
+  <div class="dot" data-i="6"></div>
+</div>
+<div class="vignette"></div>
+<div id="canvas-wrap"><canvas id="c"></canvas></div>
+<div id="hint"><div class="hl"></div>Scroll</div>
+
+<div id="scroll-track">
+
+  <section class="act act--void" id="a0">
+    <p class="void-hl">A story of sails, spheres,<br>and the unbreakable human will.</p>
+  </section>
+
+  <section class="act act--sketch" id="a1">
+    <div class="card" id="c1">
+      <div class="eyebrow">1957 &middot; Act I</div>
+      <h2>The Birth of a Legend</h2>
+      <p>In 1957, Danish architect J&oslash;rn Utzon's design emerged victorious from
+        233 international entries. Judge Eero Saarinen rescued the sketches from
+        the reject pile, calling them <em>"a masterpiece that will change modern
+        architecture forever."</em></p>
+      <div class="stats">
+        <div class="stat"><b>233</b><span>Entries</span></div>
+        <div class="stat"><b>1</b><span>Vision</span></div>
+        <div class="stat"><b>38</b><span>Utzon's age</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act act--sphere" id="a2">
+    <div class="card card--r" id="c2">
+      <div class="eyebrow">1961 &middot; Act II</div>
+      <h2>Where Mathematics Meets Art</h2>
+      <p>No one knew how to build the irregular sails. Utzon's breakthrough:
+        every shell is a slice of a single 150-metre sphere — standardised,
+        manufacturable, structurally perfect. The first marriage of geometric
+        mathematics and architectural mechanics.</p>
+      <div class="stats">
+        <div class="stat"><b>150 m</b><span>Sphere&nbsp;&oslash;</span></div>
+        <div class="stat"><b>2,194</b><span>Precast ribs</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act act--texture" id="a3">
+    <div class="card" id="c3">
+      <div class="eyebrow">1966 &middot; Act III</div>
+      <h2>The Rhythm of a Million Tiles</h2>
+      <p>The surface holds <strong>1,056,006</strong> Swedish H&ouml;gan&auml;s tiles.
+        Glossy white (roughness&nbsp;&asymp;&nbsp;0.15) alternates with matte cream
+        (roughness&nbsp;&asymp;&nbsp;0.6) so the shells shimmer like silk under
+        Sydney's blazing noon sun.</p>
+      <div class="stats">
+        <div class="stat"><b>1,056,006</b><span>Tiles</span></div>
+        <div class="stat"><b>67 m</b><span>Peak height</span></div>
+        <div class="stat"><b>H&ouml;gan&auml;s</b><span>Sweden</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act act--conflict" id="a4">
+    <div class="card card--r" id="c4">
+      <div class="eyebrow">1966 &middot; Act IV</div>
+      <h2>An Unfinished Farewell</h2>
+      <p>Budget overruns and political pressure forced Utzon to resign in 1966.
+        He left Australia and never returned — not even for the opening ceremony.
+        The interiors were completed by a government-appointed team, leaving
+        architecture's greatest unresolved heartbreak.</p>
+    </div>
+  </section>
+
+  <section class="act act--legacy" id="a5">
+    <div class="card" id="c5">
+      <div class="eyebrow">1973&ndash;2007 &middot; Act V</div>
+      <h2>Glory Across Centuries</h2>
+      <p>Opened by Queen Elizabeth&nbsp;II on 20&nbsp;October&nbsp;1973.
+        In 2003, Utzon received the Pritzker Prize — architecture's Nobel.
+        In 2007, UNESCO inscribed it as a World Heritage Site, the youngest
+        modern structure ever to receive the honour.</p>
+      <div class="stats">
+        <div class="stat"><b>1973</b><span>Opened</span></div>
+        <div class="stat"><b>2003</b><span>Pritzker</span></div>
+        <div class="stat"><b>2007</b><span>UNESCO</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="act act--future" id="a6">
+    <div class="future-wrap" id="fw">
+      <p>Not steel and concrete —<br>humanity's gift to the future.</p>
+      <div class="btns">
+        <a class="btn btn--p" href="#a0" id="replay">Watch Again</a>
+        <a class="btn" href="https://www.sydneyoperahouse.com/visit" target="_blank" rel="noopener">Plan a Visit</a>
+        <a class="btn" href="https://whc.unesco.org/en/list/166" target="_blank" rel="noopener">UNESCO Record</a>
+      </div>
+    </div>
+  </section>
+
+</div><!-- /scroll-track -->
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ══════════════════════════════════════════
+   LENIS + GSAP
+══════════════════════════════════════════ */
+const lenis = new Lenis({ duration: 1.12, easing: t => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+gsap.registerPlugin(ScrollTrigger);
+lenis.on('scroll', ScrollTrigger.update);
+gsap.ticker.add(t => lenis.raf(t * 1000));
+gsap.ticker.lagSmoothing(0);
+(function r(t){ lenis.raf(t); requestAnimationFrame(r); })(0);
+
+/* ══════════════════════════════════════════
+   RENDERER
+══════════════════════════════════════════ */
+const canvas = document.getElementById('c');
+const R = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+R.setPixelRatio(Math.min(devicePixelRatio, 2));
+R.setSize(innerWidth, innerHeight);
+R.shadowMap.enabled = true;
+R.shadowMap.type = THREE.PCFSoftShadowMap;
+R.toneMapping = THREE.ACESFilmicToneMapping;
+R.toneMappingExposure = 0.85;
+R.outputColorSpace = THREE.SRGBColorSpace;
+addEventListener('resize', () => {
+  cam.aspect = innerWidth / innerHeight;
+  cam.updateProjectionMatrix();
+  R.setSize(innerWidth, innerHeight);
+});
+
+/* ══════════════════════════════════════════
+   SCENE & CAMERA
+══════════════════════════════════════════ */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x020c1a, 0.016);
+const cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+cam.position.set(0, 8, 55);
+
+/* ══════════════════════════════════════════
+   LIGHTS  (southern hemisphere, 4 pm angle)
+══════════════════════════════════════════ */
+const ambL = new THREE.AmbientLight(0xc8dff0, 1.1);
+scene.add(ambL);
+
+const sun = new THREE.DirectionalLight(0xfff8e8, 5.5);
+sun.position.set(18, 28, 16);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 200;
+sun.shadow.camera.left = -50; sun.shadow.camera.right = 50;
+sun.shadow.camera.top  =  50; sun.shadow.camera.bottom = -50;
+sun.shadow.bias = -0.001;
+scene.add(sun);
+
+const fillL = new THREE.DirectionalLight(0x9cc4e8, 1.6);
+fillL.position.set(-14, 8, -12);
+scene.add(fillL);
+
+const rimL = new THREE.PointLight(0xc9922a, 3.0, 100);
+rimL.position.set(0, -2, 24);
+scene.add(rimL);
+
+/* ══════════════════════════════════════════
+   TILE CANVAS TEXTURE
+══════════════════════════════════════════ */
+function makeTileTex() {
+  const sz = 1024, ts = 40;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = sz;
+  const ctx = cv.getContext('2d');
+  for (let ty = 0; ty < sz; ty += ts) {
+    for (let tx = 0; tx < sz; tx += ts) {
+      ctx.fillStyle = ((tx / ts + ty / ts) % 2 === 0) ? '#f8f4ef' : '#ece3cc';
+      ctx.fillRect(tx, ty, ts - 1.5, ts - 1.5);
+    }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(10, 7);
+  return t;
+}
+const tileTex = makeTileTex();
+
+/* ══════════════════════════════════════════
+   MATERIALS
+══════════════════════════════════════════ */
+const glossy = new THREE.MeshStandardMaterial({
+  color: 0xffffff, roughness: 0.11, metalness: 0.0,
+});
+const matte = new THREE.MeshStandardMaterial({
+  color: 0xf4ece0, roughness: 0.54, metalness: 0.0,
+});
+const baseM = new THREE.MeshStandardMaterial({ color: 0x9ca3aa, roughness: 0.82, metalness: 0.02 });
+const glassM = new THREE.MeshPhysicalMaterial({
+  color: 0xd4b880, roughness: 0.04, transmission: 0.88, thickness: 0.4,
+  ior: 1.45, transparent: true, opacity: 0.48,
+});
+const ribM  = new THREE.MeshStandardMaterial({ color: 0xa8b2bc, roughness: 0.74, metalness: 0.05 });
+const waterM = new THREE.MeshStandardMaterial({ color: 0x061e38, roughness: 0.1, metalness: 0.32 });
+
+/* ══════════════════════════════════════════
+   SHELL FACTORY
+   phiStart = -π/2 → phiLength = π
+   This centres the arch opening on the +Z axis (toward camera).
+   Arch is symmetric in X, protrudes toward camera at centre.
+   thetaLength ≈ 0.49π → stops just before equator → pointed top.
+══════════════════════════════════════════ */
+function shell(sx, sy, sz, mat) {
+  const g = new THREE.SphereGeometry(
+    1, 44, 30,
+    -Math.PI * 0.5,  // phiStart  — left edge at −X axis
+     Math.PI,        // phiLength — sweep through +Z to +X
+     0,              // thetaStart — top pole = pointed tip
+     Math.PI * 0.49  // thetaLength — just before equator
+  );
+  g.scale(sx, sy, sz);
+  const m = new THREE.Mesh(g, mat);
+  m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+/* ══════════════════════════════════════════
+   OPERA HOUSE GROUP
+══════════════════════════════════════════ */
+const SOH = new THREE.Group();
+scene.add(SOH);
+
+// ── Podium ────────────────────────────────
+const pod = new THREE.Mesh(new THREE.BoxGeometry(42, 2.4, 26), baseM);
+pod.position.y = -1.2; pod.receiveShadow = true; SOH.add(pod);
+
+const step = new THREE.Mesh(new THREE.BoxGeometry(45, 0.95, 29), baseM);
+step.position.y = -2.27; step.receiveShadow = true; SOH.add(step);
+
+// ── Concert Hall shells (x ≈ −11)
+// Arranged back→front: tallest (z<0) → shortest (z>0)
+// The arch opening (phi=0 centre) protrudes toward the camera (+Z).
+const CH = -9;
+[
+  { z: -5, sx: 4.0, sy: 18, sz: 6.0, mat: glossy },
+  { z: -1, sx: 2.9, sy: 14, sz: 4.5, mat: matte  },
+  { z:  3, sx: 2.0, sy:  9, sz: 3.2, mat: glossy },
+].forEach(d => {
+  const s = shell(d.sx, d.sy, d.sz, d.mat);
+  s.position.set(CH, 0, d.z);
+  SOH.add(s);
+});
+
+// ── Opera Theatre shells (x ≈ +8)
+const OT = 8;
+[
+  { z: -3, sx: 3.4, sy: 15, sz: 5.2, mat: matte  },
+  { z:  2, sx: 2.2, sy:  9, sz: 3.2, mat: glossy },
+].forEach(d => {
+  const s = shell(d.sx, d.sy, d.sz, d.mat);
+  s.position.set(OT, 0, d.z);
+  SOH.add(s);
+});
+
+// ── Small secondary shells (restaurant / foyer area)
+[
+  { x: -1, z: 6, sx: 1.2, sy: 5.5, sz: 2.0, mat: matte  },
+  { x:  2, z: 6, sx: 1.0, sy: 4.5, sz: 1.8, mat: glossy },
+].forEach(d => {
+  const s = shell(d.sx, d.sy, d.sz, d.mat);
+  s.position.set(d.x, 0, d.z);
+  SOH.add(s);
+});
+
+// ── Glass curtain walls (smaller, more transparent)
+const glassM2 = new THREE.MeshPhysicalMaterial({
+  color: 0xc8d8e8, roughness: 0.02, transmission: 0.95, thickness: 0.2,
+  ior: 1.45, transparent: true, opacity: 0.18,
+});
+[[CH, 4.5, 5.5, 14, 9], [OT, 3.5, 4.8, 12, 7.5]].forEach(([x, y, z, w, h]) => {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassM2);
+  m.position.set(x, y, z);
+  SOH.add(m);
+});
+
+// ── Precast rib skeleton (hidden; shown in Conflict act)
+const ribs = new THREE.Group();
+ribs.visible = false;
+SOH.add(ribs);
+for (let i = 0; i < 10; i++) {
+  const r = new THREE.TorusGeometry(4 + i * 0.8, 0.18, 8, 48, Math.PI * 0.62);
+  const m = new THREE.Mesh(r, ribM);
+  m.position.set(-9 + (i - 5) * 1.2, 3 + i * 0.4, -1);
+  m.rotation.x = Math.PI * 0.5;
+  ribs.add(m);
+}
+
+// ── Bennelong Point coordinate marker (Act 0)
+const markerLight = new THREE.PointLight(0x00ccff, 0, 12);
+markerLight.position.set(0, -2.8, 6);
+scene.add(markerLight);
+const markerMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(0.18, 16, 16),
+  new THREE.MeshBasicMaterial({ color: 0x00ddff })
+);
+markerMesh.position.copy(markerLight.position);
+markerMesh.visible = false;
+scene.add(markerMesh);
+
+/* ══════════════════════════════════════════
+   WATER PLANE
+══════════════════════════════════════════ */
+const wGeo = new THREE.PlaneGeometry(360, 240, 100, 100);
+{
+  const p = wGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setZ(i, (Math.random() - 0.5) * 0.3);
+  wGeo.computeVertexNormals();
+}
+const water = new THREE.Mesh(wGeo, waterM);
+water.rotation.x = -Math.PI * 0.5;
+water.position.y = -3.4;
+water.receiveShadow = true;
+scene.add(water);
+
+/* ══════════════════════════════════════════
+   STARS
+══════════════════════════════════════════ */
+const sGeo = new THREE.BufferGeometry();
+const sP = new Float32Array(1500 * 3);
+for (let i = 0; i < 1500; i++) {
+  sP[i*3]   = (Math.random() - 0.5) * 460;
+  sP[i*3+1] = Math.random() * 95 + 15;
+  sP[i*3+2] = (Math.random() - 0.5) * 240 - 25;
+}
+sGeo.setAttribute('position', new THREE.BufferAttribute(sP, 3));
+const stars = new THREE.Points(sGeo, new THREE.PointsMaterial({
+  size: 0.22, color: 0xffffff, transparent: true, opacity: 0.55,
+}));
+scene.add(stars);
+
+/* ══════════════════════════════════════════
+   HARBOUR BRIDGE SILHOUETTE
+══════════════════════════════════════════ */
+const bCurve = new THREE.QuadraticBezierCurve3(
+  new THREE.Vector3(44, -3.4, -14),
+  new THREE.Vector3(70, 26,   -14),
+  new THREE.Vector3(96, -3.4, -14),
+);
+scene.add(new THREE.Line(
+  new THREE.BufferGeometry().setFromPoints(bCurve.getPoints(70)),
+  new THREE.LineBasicMaterial({ color: 0x253545 }),
+));
+for (let i = 6; i < 66; i += 7) {
+  const p = bCurve.getPoint(i / 70);
+  scene.add(new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(p.x, -3.4, -14),
+      new THREE.Vector3(p.x, p.y, -14),
+    ]),
+    new THREE.LineBasicMaterial({ color: 0x1c2c3c }),
+  ));
+}
+
+/* ══════════════════════════════════════════
+   SKETCH LINES  (Act I)
+   Draw the arch profile of the main Concert Hall shell using setDrawRange.
+══════════════════════════════════════════ */
+function buildSketchLine(cx, cz, sx, sy, sz) {
+  const pts = [];
+  const N = 80;
+  // Left side of arch (phi = −π/2 … 0), going up
+  for (let i = 0; i <= N; i++) {
+    const phi   = -Math.PI * 0.5 + (Math.PI * 0.5) * (i / N);
+    const theta = Math.PI * 0.48 * (1 - i / N); // near-bottom → top
+    pts.push(new THREE.Vector3(
+      cx + Math.sin(theta) * Math.cos(phi) * sx,
+      Math.cos(theta) * sy,
+      cz + Math.sin(theta) * Math.sin(phi) * sz,
+    ));
+  }
+  // Right side (phi = 0 … +π/2), going down
+  for (let i = 0; i <= N; i++) {
+    const phi   = (Math.PI * 0.5) * (i / N);
+    const theta = Math.PI * 0.48 * (i / N);
+    pts.push(new THREE.Vector3(
+      cx + Math.sin(theta) * Math.cos(phi) * sx,
+      Math.cos(theta) * sy,
+      cz + Math.sin(theta) * Math.sin(phi) * sz,
+    ));
+  }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  g.setDrawRange(0, 0);
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({
+    color: 0xffffff, transparent: true, opacity: 0.75,
+  }));
+  return { line, total: pts.length };
+}
+
+const sketchGroup = new THREE.Group();
+sketchGroup.visible = false;
+scene.add(sketchGroup);
+
+// Draw arches for the three Concert Hall shells
+const sketchLines = [
+  buildSketchLine(CH, -5, 5.5, 17, 6.5),
+  buildSketchLine(CH, -1, 4.0, 13, 5.0),
+  buildSketchLine(CH,  3, 2.8,  9, 3.8),
+].map(sl => { sketchGroup.add(sl.line); return sl; });
+
+/* ══════════════════════════════════════════
+   SPHERE VISUALISATION  (Act II)
+══════════════════════════════════════════ */
+const sphereViz = new THREE.Mesh(
+  new THREE.SphereGeometry(16, 36, 36),
+  new THREE.MeshBasicMaterial({ color: 0x3377cc, wireframe: true, transparent: true, opacity: 0 }),
+);
+sphereViz.position.set(CH, 16, -2);
+scene.add(sphereViz);
+
+/* ══════════════════════════════════════════
+   CAMERA KEYFRAME STATES  (7 acts)
+══════════════════════════════════════════ */
+const KEYS = [
+  // 0 Void — classic NE harbour view, camera elevated, both shell clusters visible
+  { px: 12, py: 18, pz: 52,  lx: -1, ly: 6,  lz:  0, fov: 54 },
+  // 1 Sketch — closer, slight west angle to show Concert Hall arches
+  { px:  2, py: 18, pz: 38,  lx: -4, ly: 9,  lz:  0, fov: 50 },
+  // 2 Sphere — pull wide to frame sphere around shells
+  { px: 20, py: 20, pz: 44,  lx: -1, ly: 9,  lz:  0, fov: 58 },
+  // 3 Texture — close on Concert Hall rear shell (tallest)
+  { px: -5, py: 14, pz: 14,  lx: -9, ly:12,  lz: -3, fov: 38 },
+  // 4 Conflict — low inside angle showing ribs
+  { px:-15, py:  5, pz: 16,  lx: -9, ly: 7,  lz:  0, fov: 62 },
+  // 5 Legacy — wide golden-hour, bridge in frame
+  { px: 26, py: 20, pz: 54,  lx:  0, ly: 5,  lz:  0, fov: 65 },
+  // 6 Future — bird's-eye
+  { px:  0, py: 65, pz: 18,  lx:  0, ly: 0,  lz:  0, fov: 70 },
+];
+
+let scrollProg = 0, curAct = 0;
+const lookAt = new THREE.Vector3(0, 5, 0);
+
+/* ══════════════════════════════════════════
+   ACT MANAGEMENT
+══════════════════════════════════════════ */
+const ACT_IDS = ['a0','a1','a2','a3','a4','a5','a6'];
+const ACT_NAMES = [
+  'Prologue — The Void',
+  'Act I — The Sketch',
+  'Act II — The Spherical Solution',
+  'Act III — A Million Tiles',
+  'Act IV — The Conflict',
+  'Act V — The Legacy',
+  'Epilogue — The Future',
+];
+const dots    = document.querySelectorAll('.dot');
+const actLabel = document.getElementById('act-label');
+
+function setAct(i) {
+  curAct = i;
+  dots.forEach((d, j) => d.classList.toggle('on', j === i));
+  actLabel.textContent = ACT_NAMES[i];
+  actLabel.style.opacity = i === 0 ? '0' : '1';
+}
+
+dots.forEach((d, i) => d.addEventListener('click', () =>
+  lenis.scrollTo(document.getElementById(ACT_IDS[i]), { duration: 1.6 })));
+
+ACT_IDS.forEach((id, i) => ScrollTrigger.create({
+  trigger: `#${id}`, start: 'top 62%', end: 'bottom 38%',
+  onEnter: () => setAct(i), onEnterBack: () => setAct(i),
+}));
+
+// Global scroll progress
+const progressEl = document.getElementById('progress');
+ScrollTrigger.create({
+  trigger: '#scroll-track', start: 'top top', end: 'bottom bottom',
+  scrub: 0,
+  onUpdate: s => { scrollProg = s.progress; progressEl.style.width = s.progress * 100 + '%'; },
+});
+
+/* ══════════════════════════════════════════
+   CARD REVEALS
+══════════════════════════════════════════ */
+function revealCard(id, dir) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const dx = dir * 28;
+  ScrollTrigger.create({
+    trigger: el, start: 'top 73%',
+    onEnter:     () => gsap.to(el, { opacity:1, x:0,  duration:1.1, ease:'power3.out' }),
+    onLeaveBack: () => gsap.to(el, { opacity:0, x:dx, duration:.7,  ease:'power2.in' }),
+  });
+}
+revealCard('c1', -1); revealCard('c2', 1);
+revealCard('c3', -1); revealCard('c4', 1); revealCard('c5', -1);
+
+gsap.set('.void-hl', { y: 16 });
+ScrollTrigger.create({
+  trigger: '#a0', start: 'top top',
+  onEnter: () => gsap.to('.void-hl', { opacity:1, y:0, duration:2, ease:'power2.out', delay:.5 }),
+});
+
+ScrollTrigger.create({
+  trigger: '#a6', start: 'top 66%',
+  onEnter: () => gsap.to('#fw', { opacity:1, duration:1.4, ease:'power2.out' }),
+});
+
+/* ══════════════════════════════════════════
+   BENNELONG MARKER  (Act 0)
+══════════════════════════════════════════ */
+ScrollTrigger.create({
+  trigger: '#a0', start: 'top top', end: 'bottom top',
+  onEnter: () => {
+    markerMesh.visible = true;
+    gsap.to(markerLight, { intensity: 3, duration: 1.8 });
+  },
+  onLeave:     () => { markerMesh.visible = false; markerLight.intensity = 0; },
+  onEnterBack: () => { markerMesh.visible = true; markerLight.intensity = 3; },
+  onLeaveBack: () => { markerMesh.visible = false; markerLight.intensity = 0; },
+});
+
+/* ══════════════════════════════════════════
+   SKETCH LINES  (Act I — scrub-animated)
+══════════════════════════════════════════ */
+ScrollTrigger.create({
+  trigger: '#a1', start: 'top 65%', end: 'bottom 20%',
+  onEnter: () => { sketchGroup.visible = true; },
+  onLeave: () => { sketchGroup.visible = false; },
+  onEnterBack: () => { sketchGroup.visible = true; },
+  onLeaveBack: () => { sketchGroup.visible = false; },
+  scrub: 1.2,
+  onUpdate: self => {
+    const p = self.progress;
+    sketchLines.forEach((sl, i) => {
+      const local = Math.max(0, Math.min(1, (p * 3) - i));
+      sl.line.geometry.setDrawRange(0, Math.floor(local * sl.total));
+    });
+  },
+});
+
+/* ══════════════════════════════════════════
+   SPHERE VIZ  (Act II)
+══════════════════════════════════════════ */
+ScrollTrigger.create({
+  trigger: '#a2', start: 'top 58%', end: 'bottom 42%',
+  onEnter:     () => gsap.to(sphereViz.material, { opacity: 0.2, duration: 1.4 }),
+  onLeave:     () => gsap.to(sphereViz.material, { opacity: 0,   duration: 1.0 }),
+  onEnterBack: () => gsap.to(sphereViz.material, { opacity: 0.2, duration: 1.4 }),
+  onLeaveBack: () => gsap.to(sphereViz.material, { opacity: 0,   duration: 1.0 }),
+});
+
+/* ══════════════════════════════════════════
+   CONFLICT — ribs + glitch  (Act IV)
+══════════════════════════════════════════ */
+let glitching = false;
+ScrollTrigger.create({
+  trigger: '#a4', start: 'top 55%', end: 'bottom 45%',
+  onEnter:     () => { glitching = true;  ribs.visible = true;  },
+  onLeave:     () => { glitching = false; ribs.visible = false; },
+  onEnterBack: () => { glitching = true;  ribs.visible = true;  },
+  onLeaveBack: () => { glitching = false; ribs.visible = false; },
+});
+
+/* ══════════════════════════════════════════
+   LOADING SEQUENCE
+══════════════════════════════════════════ */
+const lf = document.getElementById('lf');
+const loadEl = document.getElementById('loading');
+let pct = 0;
+const tick = setInterval(() => {
+  pct = Math.min(pct + Math.random() * 15, 99);
+  lf.style.width = pct + '%';
+  if (pct >= 99) {
+    clearInterval(tick);
+    setTimeout(() => {
+      lf.style.width = '100%';
+      setTimeout(() => {
+        loadEl.classList.add('gone');
+        setTimeout(() => loadEl.remove(), 950);
+        gsap.from(SOH.position, { y: -24, duration: 2.8, ease: 'expo.out', delay: 0.3 });
+      }, 320);
+    }, 160);
+  }
+}, 68);
+
+/* ══════════════════════════════════════════
+   MOUSE PARALLAX
+══════════════════════════════════════════ */
+let mx = 0, my = 0, tx = 0, ty = 0;
+addEventListener('mousemove', e => {
+  mx = (e.clientX / innerWidth  - 0.5) * 2;
+  my = (e.clientY / innerHeight - 0.5) * 2;
+});
+
+/* ══════════════════════════════════════════
+   CAMERA LERP
+══════════════════════════════════════════ */
+function lerpCam(a, b, t) {
+  const e = t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t; // ease-in-out quad
+  cam.position.x = a.px + (b.px - a.px) * e;
+  cam.position.y = a.py + (b.py - a.py) * e;
+  cam.position.z = a.pz + (b.pz - a.pz) * e;
+  lookAt.x = a.lx + (b.lx - a.lx) * e;
+  lookAt.y = a.ly + (b.ly - a.ly) * e;
+  lookAt.z = a.lz + (b.lz - a.lz) * e;
+  cam.fov = a.fov + (b.fov - a.fov) * e;
+  cam.updateProjectionMatrix();
+}
+
+/* ══════════════════════════════════════════
+   RENDER LOOP
+══════════════════════════════════════════ */
+const clock = new THREE.Clock();
+
+(function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+
+  // Mouse lerp
+  tx += (mx - tx) * 0.042;
+  ty += (my - ty) * 0.042;
+
+  // Camera keyframe interpolation
+  const N = KEYS.length - 1;
+  const raw = scrollProg * N;
+  const fi  = Math.min(Math.floor(raw), N - 1);
+  lerpCam(KEYS[fi], KEYS[fi + 1], raw - fi);
+  cam.position.x += tx * 1.0;
+  cam.position.y -= ty * 0.45;
+  cam.lookAt(lookAt);
+
+  // Water wave (GPU-cheap: only update every other frame)
+  if (Math.round(t * 60) % 2 === 0) {
+    const wp = wGeo.attributes.position;
+    for (let i = 0; i < wp.count; i++) {
+      const x = wp.getX(i), y = wp.getY(i);
+      wp.setZ(i, Math.sin(x * 0.27 + t * 0.42) * 0.09
+               + Math.cos(y * 0.36 + t * 0.28) * 0.07);
+    }
+    wp.needsUpdate = true;
+  }
+
+  // Tile shimmer via roughness
+  const shim = (Math.sin(t * 0.75 + tx * 1.6) + 1) * 0.5;
+  glossy.roughness = 0.10 + shim * 0.08;
+  matte.roughness  = 0.50 + shim * 0.10;
+
+  // Stars
+  stars.material.opacity = 0.36 + Math.sin(t * 0.26) * 0.18;
+
+  // Sphere slow rotation
+  sphereViz.rotation.y = t * 0.06;
+
+  // Rim pulse + per-act tuning
+  if (curAct === 5) {
+    rimL.color.setHex(0xffa040);
+    rimL.intensity = 5.0 + Math.sin(t * 0.38) * 1.2;
+    ambL.intensity = 1.4;
+    R.toneMappingExposure = 0.95;
+  } else if (curAct === 4) {
+    rimL.intensity = 1.4;
+    R.toneMappingExposure = 0.48 + Math.sin(t * 3.1) * 0.04;
+    ambL.intensity = 0.5;
+  } else {
+    rimL.color.setHex(0xc9922a);
+    rimL.intensity = 2.5 + Math.sin(t * 0.58) * 0.5;
+    ambL.intensity = 1.1;
+    R.toneMappingExposure = 0.85;
+  }
+
+  // Fog per act
+  scene.fog.density = curAct === 6 ? 0.006 : 0.016;
+
+  // Glitch
+  if (glitching && Math.random() < 0.05) {
+    SOH.position.x = (Math.random() - 0.5) * 0.5;
+    SOH.position.y = (Math.random() - 0.5) * 0.24;
+  } else if (!glitching) {
+    SOH.position.x = 0; SOH.position.y = 0;
+  }
+
+  // Bennelong marker pulse
+  if (markerMesh.visible) {
+    const pulse = (Math.sin(t * 3) + 1) * 0.5;
+    markerLight.intensity = 2.5 + pulse * 2;
+    markerMesh.scale.setScalar(1 + pulse * 0.3);
+  }
+
+  R.render(scene, cam);
+})();
+
+/* ══════════════════════════════════════════
+   REPLAY BUTTON
+══════════════════════════════════════════ */
+document.getElementById('replay').addEventListener('click', e => {
+  e.preventDefault();
+  lenis.scrollTo(0, { duration: 2.4, easing: t => 1 - Math.pow(1 - t, 4) });
+});
+</script>
+</body>
+</html>
